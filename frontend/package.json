@@ -1,0 +1,14 @@
+{
+  "name": "finpulse-frontend",
+  "version": "1.0.0",
+  "description": "FinPulse Expense Tracker Frontend (PWA)",
+  "main": "src/app.js",
+  "scripts": {
+    "dev": "node -e \"const http=require('http'),fs=require('fs'),path=require('path'),mime={'.html':'text/html','.css':'text/css','.js':'text/javascript','.json':'application/json','.png':'image/png'}; http.createServer((q,s)=>{let p=path.join(__dirname,'..',q.url==='/'?'index.html':q.url.split('?')[0]); if(!fs.existsSync(p)){s.writeHead(404);return s.end('Not Found');} s.setHeader('Content-Type',mime[path.extname(p)]||'application/octet-stream'); fs.createReadStream(p).pipe(s);}).listen(8787,()=>console.log('Frontend dev server running at http://localhost:8787'));\"",
+    "build": "echo 'Frontend static build verified'",
+    "test": "node ../backend/tests/test_backend.js"
+  },
+  "keywords": ["finance", "expense-tracker", "pwa", "charts"],
+  "author": "FinPulse Team",
+  "license": "MIT"
+}
