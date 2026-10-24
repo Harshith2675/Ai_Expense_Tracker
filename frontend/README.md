@@ -1,38 +1,16 @@
-# FinPulse — Frontend Application
+# React + Vite
 
-This directory contains the client-side Progressive Web Application (PWA) for the FinPulse Expense Tracker.
+This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
 
-## Directory Layout
+Currently, two official plugins are available:
 
-```
-frontend/
-├── public/
-│   ├── assets/            # App icons (192px, 512px)
-│   ├── manifest.json      # PWA web app manifest
-│   └── sw.js              # Service worker for offline caching
-├── src/
-│   ├── assets/            # SVG icons and visual assets
-│   ├── components/
-│   │   ├── common/        # Dialogs, toasts, buttons
-│   │   ├── dashboard/     # Month nav, summary cards, recent transactions
-│   │   ├── transactions/  # Transaction form and list
-│   │   ├── analytics/     # Donut breakdown, trend charts (Chart.js)
-│   │   └── budget/        # Budget cards and progress bars
-│   ├── screens/           # Dashboard, Transactions, Analytics, Budgets, Settings
-│   ├── services/          # Local IndexedDB storage and demo data loader
-│   ├── api/               # Supabase API client
-│   ├── models/            # Category models and defaults
-│   ├── constants/         # App configuration and limits
-│   └── theme/             # Modern emerald green CSS theme
-├── tests/                 # Frontend component and UI tests
-├── package.json           # Frontend scripts
-└── index.html             # Single-page application entry point
-```
+- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
+- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
 
-## Features
+## React Compiler
 
-- **Modern UI/UX**: Emerald green financial theme (`#166534`, `#DCFCE7`), white rounded cards, smooth micro-interactions.
-- **Budget Overview**: 6 summary cards updating across 4 period ranges (This Month, Last 3 Months, This Year, Custom).
-- **Interactive Charts**: Donut chart with center text and category highlighting, multi-period trend charts.
-- **Offline First**: IndexedDB storage with seamless Supabase cloud synchronization.
-- **Indian Rupee (₹ INR)**: Standardized currency formatting across all screens.
+The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+
+## Expanding the Oxlint configuration
+
+If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
