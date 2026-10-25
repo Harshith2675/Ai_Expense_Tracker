@@ -18,7 +18,7 @@ class Config:
     # Configurable CORS origin: single URL or comma-separated list of origins
     CORS_ALLOWED_ORIGINS = os.getenv(
         "CORS_ALLOWED_ORIGINS",
-        os.getenv("FRONTEND_URL", "http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000,http://127.0.0.1:3000,http://localhost:4173,http://127.0.0.1:4173")
+        os.getenv("FRONTEND_URL", "https://harshith2675.github.io,http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000,http://127.0.0.1:3000,http://localhost:4173,http://127.0.0.1:4173")
     )
     BANKING_PROVIDER = os.getenv("BANKING_PROVIDER", "demo")
 

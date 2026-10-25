@@ -83,7 +83,7 @@ export default function Topbar({
         <div
           id="backend-status-indicator"
           className="status-indicator-badge"
-          title={backendOnline ? "Connected to Flask API on :5050" : "Running on local sample data preview"}
+          title={backendOnline ? "Connected to Flask REST API" : "Running on local sample data preview"}
         >
           <span className={`status-dot ${backendOnline ? 'online' : 'simulated'}`} />
           <span>{backendOnline ? 'Flask API Live' : 'Sample Data Mode'}</span>

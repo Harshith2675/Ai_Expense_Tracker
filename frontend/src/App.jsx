@@ -39,10 +39,10 @@ export default function App() {
 
   // ── Data ──
   // DB transactions (loaded from Flask) and sample transactions are kept separate.
-  const [dbTransactions, setDbTransactions] = useState([]);       // from API
-  const [sampleTransactions]                = useState(INITIAL_TRANSACTIONS); // static sample
-  const [usingDB, setUsingDB]               = useState(false);    // true once API responded
-  const [categories, setCategories]         = useState(CATEGORIES);
+  const [dbTransactions, setDbTransactions]         = useState([]);       // from API
+  const [sampleTransactions, setSampleTransactions] = useState(INITIAL_TRANSACTIONS); // client/sample list
+  const [usingDB, setUsingDB]                       = useState(false);    // true once API responded
+  const [categories]                                = useState(CATEGORIES);
   const [insights]                          = useState(AI_INSIGHTS_SAMPLE);
   const [dbSummary, setDbSummary]           = useState(null);     // from /api/summary
 
@@ -105,7 +105,8 @@ export default function App() {
     let income = 0, expense = 0;
     transactions.forEach(tx => {
       const amt = Number(tx.amount) || 0;
-      if (tx.type === 'income') income += amt;
+      const type = (tx.type || tx.transaction_type || '').toLowerCase();
+      if (type === 'income') income += amt;
       else expense += amt;
     });
     const monthlyBudget = INITIAL_SUMMARY.monthlyBudget;
@@ -128,7 +129,10 @@ export default function App() {
     categories.map(cat => {
       if (cat.type === 'income') return cat;
       const spent = transactions
-        .filter(tx => tx.type === 'expense' && tx.category.toLowerCase() === cat.name.toLowerCase())
+        .filter(tx => {
+          const type = (tx.type || tx.transaction_type || '').toLowerCase();
+          return type === 'expense' && (tx.category || '').toLowerCase() === cat.name.toLowerCase();
+        })
         .reduce((s, tx) => s + (Number(tx.amount) || 0), 0);
       return { ...cat, spent };
     }),
@@ -141,6 +145,8 @@ export default function App() {
       setDbTransactions(prev => [newTx, ...prev]);
       // Refresh DB summary
       fetchSummary().then(s => { if (s) setDbSummary(s); });
+    } else {
+      setSampleTransactions(prev => [newTx, ...prev]);
     }
     setActiveTab('transactions');
   }, [usingDB]);
@@ -149,6 +155,8 @@ export default function App() {
     if (usingDB) {
       setDbTransactions(prev => [newTx, ...prev]);
       fetchSummary().then(s => { if (s) setDbSummary(s); });
+    } else {
+      setSampleTransactions(prev => [newTx, ...prev]);
     }
     setActiveTab('transactions');
   }, [usingDB]);
@@ -162,10 +170,14 @@ export default function App() {
       }
     }
     setDbTransactions(prev => prev.filter(t => t.id !== id));
-    fetchSummary().then(s => { if (s) setDbSummary(s); });
+    setSampleTransactions(prev => prev.filter(t => t.id !== id));
+    if (usingDB) {
+      fetchSummary().then(s => { if (s) setDbSummary(s); });
+    }
   }, [usingDB, backendOnline]);
 
   const handleResetSampleData = () => {
+    setSampleTransactions(INITIAL_TRANSACTIONS);
     setDbTransactions([]);
     setUsingDB(false);
     setDbSummary(null);

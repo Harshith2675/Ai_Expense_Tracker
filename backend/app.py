@@ -23,6 +23,7 @@ def create_app(config_class=Config):
         allowed_origins = [orig.strip() for orig in cors_origins_raw.split(",") if orig.strip()]
         if not allowed_origins:
             allowed_origins = [
+                "https://harshith2675.github.io",
                 "http://localhost:5173",
                 "http://127.0.0.1:5173",
                 "http://localhost:3000",
@@ -124,5 +125,16 @@ if __name__ == "__main__":
     port = int(os.environ.get("PORT", app.config.get("PORT", 5050)))
     debug_mode = app.config.get("DEBUG", False)
     print(f"Starting AI Expense Tracker API server on http://localhost:{port} (debug={debug_mode})")
-    app.run(host="0.0.0.0", port=port, debug=debug_mode)
+    try:
+        app.run(host="0.0.0.0", port=port, debug=debug_mode)
+    except OSError as e:
+        # Errno 48: Address already in use
+        if getattr(e, "errno", None) == 48 or "Address already in use" in str(e):
+            print(f"\n[ERROR] Port {port} is already in use by another running process.")
+            print(f"  - To terminate the existing process on port {port}:")
+            print(f"      lsof -ti:{port} | xargs kill -9")
+            print(f"  - Or specify an alternative port:")
+            print(f"      PORT=5051 python app.py\n")
+        else:
+            raise
 

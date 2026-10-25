@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: ai-expense-tracker-backend
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn wsgi:app
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: FLASK_DEBUG
+        value: "0"
+      - key: CORS_ALLOWED_ORIGINS
+        value: https://harshith2675.github.io
+      - key: BANKING_PROVIDER
+        value: demo
+      - key: SECRET_KEY
+        generateValue: true

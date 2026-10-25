@@ -10,14 +10,51 @@
  * Normalizes the URL so that either 'https://service.onrender.com' or
  * 'https://service.onrender.com/api' (with or without trailing slash) resolves properly.
  */
-export function resolveApiBaseUrl() {
-  const envUrl = (
+export function getStoredApiUrl() {
+  if (typeof window !== 'undefined') {
+    return localStorage.getItem('expense_tracker_api_url') || '';
+  }
+  return '';
+}
+
+export function setStoredApiUrl(url) {
+  if (typeof window !== 'undefined') {
+    if (url && url.trim()) {
+      localStorage.setItem('expense_tracker_api_url', url.trim());
+    } else {
+      localStorage.removeItem('expense_tracker_api_url');
+    }
+  }
+}
+
+/**
+ * Resolves the backend API base URL.
+ * Priority:
+ * 1. Explicit override passed in
+ * 2. User-saved URL in browser localStorage
+ * 3. Build-time environment variable VITE_API_BASE_URL or VITE_API_URL
+ * 4. Localhost default (only when running on local development machines)
+ */
+export function resolveApiBaseUrl(overrideUrl = null) {
+  const isLocalHost = typeof window !== 'undefined' && 
+    (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
+  const rawUrl = (
+    overrideUrl ||
+    getStoredApiUrl() ||
     import.meta.env.VITE_API_BASE_URL ||
     import.meta.env.VITE_API_URL ||
-    "http://localhost:5050/api"
-  ).trim().replace(/\/+$/, "");
+    (isLocalHost ? "http://localhost:5050/api" : "")
+  );
+
+  const envUrl = (rawUrl || "").trim().replace(/\/+$/, "");
+  if (!envUrl) return "";
 
   return envUrl.endsWith("/api") ? envUrl : `${envUrl}/api`;
+}
+
+export function getApiBaseUrl() {
+  return resolveApiBaseUrl();
 }
 
 export const API_BASE_URL = resolveApiBaseUrl();
@@ -26,10 +63,15 @@ const DEFAULT_TIMEOUT_MS = Number(import.meta.env.VITE_API_TIMEOUT_MS) || 12000;
 
 
 async function apiFetch(path, options = {}) {
+  const baseUrl = options.baseUrlOverride !== undefined ? options.baseUrlOverride : getApiBaseUrl();
+  if (!baseUrl) {
+    throw new Error("Backend API URL is not configured. Running in offline/sample mode.");
+  }
+
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
   try {
-    const res = await fetch(`${API_BASE_URL}${path}`, {
+    const res = await fetch(`${baseUrl}${path}`, {
       ...options,
       signal: controller.signal,
       headers: {
@@ -46,9 +88,13 @@ async function apiFetch(path, options = {}) {
 }
 
 // ─────────────────────────────────────────────── Health
-export async function checkBackendHealth() {
+export async function checkBackendHealth(urlOverride = null) {
   try {
-    const res = await apiFetch("/health");
+    const baseUrl = urlOverride !== null ? resolveApiBaseUrl(urlOverride) : getApiBaseUrl();
+    if (!baseUrl) {
+      return { status: "offline", reason: "unconfigured" };
+    }
+    const res = await apiFetch("/health", { baseUrlOverride: baseUrl });
     if (!res.ok) throw new Error("Non-2xx response");
     return await res.json();
   } catch {

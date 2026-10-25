@@ -1,21 +1,46 @@
 import React, { useState } from 'react';
 import { useCurrency } from '../../context/CurrencyContext';
-import { Settings, Server, Database, Moon, Sun, RefreshCw, CheckCircle2, AlertCircle } from 'lucide-react';
-import { checkBackendHealth, API_BASE_URL } from '../../services/apiService';
+import { Settings, Server, Database, Moon, Sun, RefreshCw, CheckCircle2, AlertCircle, Save } from 'lucide-react';
+import {
+  checkBackendHealth,
+  resolveApiBaseUrl,
+  getStoredApiUrl,
+  setStoredApiUrl
+} from '../../services/apiService';
 
 export default function SettingsView({ theme, setTheme, onResetSampleData }) {
   const { currency, setCurrency } = useCurrency();
-  const [apiUrl, setApiUrl] = useState(API_BASE_URL);
+  const [apiUrl, setApiUrl] = useState(getStoredApiUrl() || resolveApiBaseUrl());
 
   const [testingConnection, setTestingConnection] = useState(false);
   const [testResult, setTestResult] = useState(null);
+  const [saveMessage, setSaveMessage] = useState('');
 
   const handleTestConnection = async () => {
     setTestingConnection(true);
     setTestResult(null);
-    const result = await checkBackendHealth();
+    setSaveMessage('');
+    const result = await checkBackendHealth(apiUrl);
     setTestResult(result);
     setTestingConnection(false);
+  };
+
+  const handleSaveApiUrl = () => {
+    setStoredApiUrl(apiUrl);
+    setSaveMessage('Backend URL saved successfully! Reloading data...');
+    setTimeout(() => {
+      window.location.reload();
+    }, 800);
+  };
+
+  const handleResetApiUrl = () => {
+    setStoredApiUrl('');
+    const defaultUrl = resolveApiBaseUrl('');
+    setApiUrl(defaultUrl);
+    setSaveMessage('Reset to build default URL. Reloading...');
+    setTimeout(() => {
+      window.location.reload();
+    }, 800);
   };
 
   return (
@@ -80,14 +105,15 @@ export default function SettingsView({ theme, setTheme, onResetSampleData }) {
             </p>
 
 
-            <div style={{ display: 'flex', gap: '12px', maxWidth: '500px', marginBottom: '12px' }}>
+            <div style={{ display: 'flex', gap: '10px', maxWidth: '620px', marginBottom: '12px', flexWrap: 'wrap' }}>
               <input
                 id="backend-api-url-input"
                 type="text"
                 className="form-input"
+                placeholder="https://your-service.onrender.com"
                 value={apiUrl}
                 onChange={(e) => setApiUrl(e.target.value)}
-                style={{ flex: 1 }}
+                style={{ flex: '1 1 280px' }}
               />
               <button
                 id="test-backend-connection-btn"
@@ -96,9 +122,42 @@ export default function SettingsView({ theme, setTheme, onResetSampleData }) {
                 disabled={testingConnection}
               >
                 <RefreshCw size={14} className={testingConnection ? 'animate-spin' : ''} />
-                <span>{testingConnection ? 'Checking...' : 'Test API'}</span>
+                <span>{testingConnection ? 'Testing...' : 'Test API'}</span>
+              </button>
+              <button
+                id="save-backend-url-btn"
+                className="btn btn-primary"
+                onClick={handleSaveApiUrl}
+              >
+                <Save size={14} />
+                <span>Save & Connect</span>
+              </button>
+              <button
+                id="reset-backend-url-btn"
+                className="btn btn-secondary"
+                onClick={handleResetApiUrl}
+                title="Reset to build default"
+              >
+                <span>Reset</span>
               </button>
             </div>
+
+            {saveMessage && (
+              <div
+                style={{
+                  padding: '10px 14px',
+                  borderRadius: 'var(--radius-sm)',
+                  fontSize: '0.82rem',
+                  marginBottom: '10px',
+                  background: 'var(--color-income-soft)',
+                  color: 'var(--color-income)',
+                  border: '1px solid rgba(16,185,129,0.3)',
+                  maxWidth: '620px'
+                }}
+              >
+                {saveMessage}
+              </div>
+            )}
 
             {testResult && (
               <div
@@ -118,7 +177,7 @@ export default function SettingsView({ theme, setTheme, onResetSampleData }) {
                 <span>
                   {testResult.status === 'healthy'
                     ? `Connected! Flask API v${testResult.version} (${testResult.database}) is active.`
-                    : 'Backend API is currently offline. Operating in client-side Sample Data Mode.'}
+                    : 'Backend API is currently unreachable. Make sure the Render URL is correct and the service is awake.'}
                 </span>
               </div>
             )}

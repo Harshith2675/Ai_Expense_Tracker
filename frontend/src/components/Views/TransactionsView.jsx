@@ -93,9 +93,54 @@ export default function TransactionsView({
   // ─── Load from backend ────────────────────────────────────────────────
   const load = useCallback(async () => {
     if (!backendOnline) {
-      // Offline: filter/sort locally from prop data
-      setRows(propTxns || []);
-      setPagination({ page: 1, pages: 1, total: (propTxns || []).length });
+      // Offline: filter/sort/paginate locally from prop data
+      let filtered = [...(propTxns || [])];
+      if (search.trim()) {
+        const q = search.trim().toLowerCase();
+        filtered = filtered.filter(t =>
+          (t.description || '').toLowerCase().includes(q) ||
+          (t.category || '').toLowerCase().includes(q) ||
+          (t.paymentMethod || t.payment_method || '').toLowerCase().includes(q)
+        );
+      }
+      if (filterType !== 'all') {
+        filtered = filtered.filter(t => (t.type || t.transaction_type || '').toLowerCase() === filterType.toLowerCase());
+      }
+      if (filterCat) {
+        filtered = filtered.filter(t => (t.category || '').toLowerCase() === filterCat.toLowerCase());
+      }
+      if (filterPay) {
+        filtered = filtered.filter(t => (t.paymentMethod || t.payment_method || '').toLowerCase() === filterPay.toLowerCase());
+      }
+      if (filterDet) {
+        filtered = filtered.filter(t => (t.detectionMethod || t.detection_method || '').toLowerCase() === filterDet.toLowerCase());
+      }
+      if (dateFrom) {
+        filtered = filtered.filter(t => (t.date || t.transaction_date || '') >= dateFrom);
+      }
+      if (dateTo) {
+        filtered = filtered.filter(t => (t.date || t.transaction_date || '') <= dateTo);
+      }
+
+      // Sort
+      filtered.sort((a, b) => {
+        const dateA = a.date || a.transaction_date || '';
+        const dateB = b.date || b.transaction_date || '';
+        const amtA = Number(a.amount) || 0;
+        const amtB = Number(b.amount) || 0;
+        if (sort === 'oldest') return dateA.localeCompare(dateB);
+        if (sort === 'highest') return amtB - amtA;
+        if (sort === 'lowest') return amtA - amtB;
+        return dateB.localeCompare(dateA);
+      });
+
+      const total = filtered.length;
+      const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+      const currentPage = Math.min(page, pages);
+      const pagedRows = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
+      setRows(pagedRows);
+      setPagination({ page: currentPage, pages, total });
       setUsingBackend(false);
       return;
     }

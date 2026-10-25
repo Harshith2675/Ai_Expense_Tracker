@@ -5,11 +5,20 @@ If credentials or the Plaid SDK are not available, it cleanly reports not config
 """
 import os
 import logging
-from typing import Optional, List
-from datetime import datetime
+from typing import Optional, List, Any
+from datetime import datetime, timezone
 from services.providers.base import BaseBankingProvider, NormalizedTransaction
 
 logger = logging.getLogger(__name__)
+
+
+def _extract_field(obj: Any, field_name: str, default: Any = None) -> Any:
+    """Helper to safely extract field values from either dicts or SDK typed model objects."""
+    if isinstance(obj, dict):
+        val = obj.get(field_name, default)
+    else:
+        val = getattr(obj, field_name, default)
+    return default if val is None else val
 
 
 class PlaidBankingProvider(BaseBankingProvider):
@@ -29,12 +38,35 @@ class PlaidBankingProvider(BaseBankingProvider):
     def display_name(self) -> str:
         return "Plaid Open Banking (Official API)"
 
+    @staticmethod
+    def is_sdk_available() -> bool:
+        """Check if the plaid-python library is installed in the active environment."""
+        try:
+            import plaid  # noqa: F401
+            return True
+        except ImportError:
+            return False
+
     def is_configured(self) -> bool:
-        """Returns True ONLY if official credentials and access token are present in env."""
-        return bool(self.client_id and self.secret and self.access_token)
+        """
+        Returns True ONLY if official credentials, access token,
+        AND the Plaid SDK library are all present and importable.
+        """
+        has_credentials = bool(self.client_id and self.secret and self.access_token)
+        return has_credentials and self.is_sdk_available()
 
     def get_status(self) -> dict:
-        configured = self.is_configured()
+        sdk_present = self.is_sdk_available()
+        has_credentials = bool(self.client_id and self.secret and self.access_token)
+        configured = has_credentials and sdk_present
+
+        if has_credentials and not sdk_present:
+            message = "Plaid credentials configured in .env, but 'plaid-python' library is not installed in the environment."
+        elif configured:
+            message = f"Plaid integration configured and active in {self.environment} environment."
+        else:
+            message = "Plaid integration not configured. Requires PLAID_CLIENT_ID, PLAID_SECRET, and PLAID_ACCESS_TOKEN in .env."
+
         return {
             "provider_id": self.provider_id,
             "display_name": self.display_name,
@@ -43,11 +75,8 @@ class PlaidBankingProvider(BaseBankingProvider):
             "mode": "real" if configured else "unconfigured",
             "connection_status": "connected" if configured else "disconnected",
             "environment": self.environment if configured else None,
-            "message": (
-                "Plaid credentials configured in environment."
-                if configured else
-                "Plaid integration not configured. Requires PLAID_CLIENT_ID, PLAID_SECRET, and PLAID_ACCESS_TOKEN in .env."
-            ),
+            "sdk_installed": sdk_present,
+            "message": message,
         }
 
     def fetch_transactions(self, since: Optional[datetime] = None) -> List[NormalizedTransaction]:
@@ -56,7 +85,7 @@ class PlaidBankingProvider(BaseBankingProvider):
         Only executes if fully configured and official SDK is present.
         """
         if not self.is_configured():
-            logger.warning("[PlaidProvider] Attempted to fetch transactions when unconfigured.")
+            logger.warning("[PlaidProvider] Attempted to fetch transactions when unconfigured or SDK missing.")
             return []
 
         try:
@@ -64,12 +93,15 @@ class PlaidBankingProvider(BaseBankingProvider):
             from plaid.api import plaid_api
             from plaid.model.transactions_sync_request import TransactionsSyncRequest
 
+            if self.environment == "production":
+                host = plaid.Environment.Production
+            elif self.environment == "development":
+                host = getattr(plaid.Environment, "Development", plaid.Environment.Sandbox)
+            else:
+                host = plaid.Environment.Sandbox
+
             configuration = plaid.Configuration(
-                host=(
-                    plaid.Environment.Production if self.environment == "production"
-                    else plaid.Environment.Development if self.environment == "development"
-                    else plaid.Environment.Sandbox
-                ),
+                host=host,
                 api_key={
                     "clientId": self.client_id,
                     "secret": self.secret,
@@ -80,32 +112,59 @@ class PlaidBankingProvider(BaseBankingProvider):
 
             request = TransactionsSyncRequest(access_token=self.access_token)
             response = client.transactions_sync(request)
-            added_txs = response.get("added", [])
+
+            # Support both SDK model objects and dict responses
+            if hasattr(response, "added"):
+                added_txs = response.added or []
+            elif isinstance(response, dict):
+                added_txs = response.get("added", response.get("transactions", []))
+            else:
+                added_txs = getattr(response, "added", []) or []
 
             normalized: List[NormalizedTransaction] = []
             for tx in added_txs:
                 # Plaid amounts: positive = expense/debit, negative = income/credit
-                raw_amt = float(tx.get("amount", 0.0))
+                raw_amt = float(_extract_field(tx, "amount", 0.0))
                 is_income = raw_amt < 0
                 abs_amount = abs(raw_amt)
-                description = tx.get("name") or tx.get("merchant_name") or "Card Transaction"
-                raw_cat = tx.get("category", ["Other"])[0] if tx.get("category") else "Other"
+
+                description = (
+                    _extract_field(tx, "name")
+                    or _extract_field(tx, "merchant_name")
+                    or "Card Transaction"
+                )
+
+                raw_cat_val = _extract_field(tx, "category")
+                if isinstance(raw_cat_val, (list, tuple)) and len(raw_cat_val) > 0:
+                    raw_cat = str(raw_cat_val[0])
+                elif raw_cat_val:
+                    raw_cat = str(raw_cat_val)
+                else:
+                    raw_cat = "Other"
 
                 suggested_cat = self._map_category(raw_cat, description)
                 confidence = 0.90 if suggested_cat != "Other" else 0.50
 
+                tx_id = str(_extract_field(tx, "transaction_id", ""))
+                tx_date_val = _extract_field(tx, "date")
+                tx_date = str(tx_date_val) if tx_date_val else datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+                payment_channel = str(_extract_field(tx, "payment_channel", "")).lower()
+                payment_method = "Debit Card" if payment_channel in ("in store", "in_store") else "Bank Transfer"
+                is_pending = bool(_extract_field(tx, "pending", False))
+
                 normalized.append(NormalizedTransaction(
-                    external_id=str(tx.get("transaction_id")),
+                    external_id=tx_id,
                     description=description,
                     amount=abs_amount,
                     transaction_type="income" if is_income else "expense",
-                    transaction_date=tx.get("date", datetime.utcnow().strftime("%Y-%m-%d")),
-                    payment_method="Debit Card" if tx.get("payment_channel") == "in store" else "Bank Transfer",
+                    transaction_date=tx_date,
+                    payment_method=payment_method,
                     suggested_category=suggested_cat,
                     confidence=confidence,
                     requires_review=confidence < 0.75,
                     is_reversed=False,
-                    is_pending=bool(tx.get("pending")),
+                    is_pending=is_pending,
                     raw_category=raw_cat,
                     notes=f"Synced via Plaid ({self.environment})",
                     is_demo=False,
