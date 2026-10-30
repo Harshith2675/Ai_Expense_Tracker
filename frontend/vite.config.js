@@ -1,8 +1,8 @@
-import react from '@vitejs/plugin-react'
-import { defineConfig } from 'vite'
 
-// https://vite.dev/config/
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+
 export default defineConfig({
   plugins: [react()],
-  base: process.env.VITE_BASE_PATH || '/Ai_Expense_Tracker/',
+  base: '/Ai_Expense_Tracker/',
 })
